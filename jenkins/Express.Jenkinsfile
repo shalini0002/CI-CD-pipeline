@@ -2,14 +2,12 @@ pipeline {
     agent any
 
     environment {
+        // Using relative paths to avoid permission issues
         APP_DIR = "./app"
         PM2_APP = "express-app"
         NODE_ENV = "production"
-    }
-
-    tools {
-        // This requires NodeJS plugin to be installed
-        nodejs 'NodeJS_20'  // Make sure this matches the name in Jenkins Global Tool Configuration
+        // Add Node.js to PATH if installed in a standard location
+        PATH = "${env.PATH}:/usr/local/bin:/usr/bin"
     }
 
     stages {
