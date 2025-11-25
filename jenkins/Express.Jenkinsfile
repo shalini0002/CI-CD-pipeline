@@ -1,17 +1,17 @@
 pipeline {
-  agent any
+    agent {
+        docker {
+            image 'node:20-alpine'
+        }
+    }
 
-  environment {
-    APP_DIR = "/home/ubuntu/apps/express-app"
-    PM2_APP = "express-app"
-    NODE_ENV = "production"
-  }
+    environment {
+        APP_DIR = "/app"
+        PM2_APP = "express-app"
+        NODE_ENV = "production"
+    }
 
-  tools {
-    nodejs 'NodeJS_20'
-  }
-
-  stages {
+    stages {
     stage('Checkout') {
       steps { checkout scm }
     }
