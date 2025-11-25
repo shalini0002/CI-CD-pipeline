@@ -6,8 +6,8 @@ pipeline {
         APP_DIR = "./app"
         PM2_APP = "express-app"
         NODE_ENV = "production"
-        // Add common Node.js installation paths to PATH
-        PATH = "/usr/local/bin:/usr/bin:${env.PATH}"
+        // Add Homebrew's Node.js to PATH
+        PATH = "/opt/homebrew/opt/node@20/bin:/opt/homebrew/bin:${env.PATH}"
     }
 
     stages {
