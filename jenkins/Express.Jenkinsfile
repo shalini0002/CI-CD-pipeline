@@ -46,22 +46,33 @@ pipeline {
       steps { checkout scm }
     }
 
-    stage('Sync to Server') {
-      steps {
-        sh '''
-          set -e
-          mkdir -p ${APP_DIR}
-          rsync -av --delete --exclude 'node_modules' --exclude '.git' ./ ${APP_DIR}/
-        '''
-      }
-    }
-
     stage('Install deps') {
       steps {
         sh '''
           set -e
-          cd ${APP_DIR}
-          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          echo "Installing Node.js dependencies..."
+          npm install
+        '''
+      }
+    }
+
+    stage('Test') {
+      steps {
+        sh '''
+          echo "Running tests..."
+          npm test
+        '''
+      }
+    }
+
+    stage('Start Application') {
+      steps {
+        sh '''
+          echo "Starting the application..."
+          nohup node app.js > app.log 2>&1 &
+          echo $! > app.pid
+          sleep 5  # Give the app some time to start
+          echo "Application started with PID $(cat app.pid)"
         '''
       }
     }
@@ -110,8 +121,19 @@ pipeline {
 
   post {
     always {
-      sh 'pm2 status || true'
-      archiveArtifacts artifacts: '**/build/**', allowEmptyArchive: true
+      script {
+        // Stop the application if it's running
+        sh '''
+          if [ -f app.pid ]; then
+            echo "Stopping application..."
+            kill $(cat app.pid) || true
+            rm -f app.pid
+          fi
+        '''
+        
+        // Archive any important files
+        archiveArtifacts artifacts: 'app.log', allowEmptyArchive: true
+      }
     }
   }
 }
