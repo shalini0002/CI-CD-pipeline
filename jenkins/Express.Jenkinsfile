@@ -1,14 +1,15 @@
 pipeline {
-    agent {
-        docker {
-            image 'node:20-alpine'
-        }
-    }
+    agent any
 
     environment {
-        APP_DIR = "/app"
+        APP_DIR = "./app"
         PM2_APP = "express-app"
         NODE_ENV = "production"
+    }
+
+    tools {
+        // This requires NodeJS plugin to be installed
+        nodejs 'NodeJS_20'  // Make sure this matches the name in Jenkins Global Tool Configuration
     }
 
     stages {
