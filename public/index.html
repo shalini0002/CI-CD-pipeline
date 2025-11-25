@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CI/CD Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        .container {
+            margin-top: 50px;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CI/CD Deployment Assignment</h1>
+        <h2>Express Frontend + Flask Backend</h2>
+        
+        <div class="status" id="expressStatus">
+            Express Frontend: <span id="expressStatusText">Checking...</span>
+        </div>
+        
+        <div class="status" id="flaskStatus">
+            Flask Backend: <span id="flaskStatusText">Checking...</span>
+        </div>
+        
+        <div id="dataContainer" style="display: none;">
+            <h3>Data from Flask Backend:</h3>
+            <pre id="apiData">Loading...</pre>
+        </div>
+    </div>
+
+    <script>
+        // Check Express is running
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('expressStatusText').textContent = 'Running';
+            document.getElementById('expressStatus').classList.add('success');
+            
+            // Try to fetch data from Express (which proxies to Flask)
+            fetch('/api/data')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('flaskStatusText').textContent = 'Connected';
+                    document.getElementById('flaskStatus').classList.add('success');
+                    
+                    // Show and update data container
+                    document.getElementById('dataContainer').style.display = 'block';
+                    document.getElementById('apiData').textContent = JSON.stringify(data, null, 2);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('flaskStatusText').textContent = 'Connection failed';
+                    document.getElementById('flaskStatus').classList.add('error');
+                });
+        });
+    </script>
+</body>
+</html>

@@ -2,12 +2,18 @@ pipeline {
     agent any
 
     environment {
-        // Using relative paths to avoid permission issues
-        APP_DIR = "./app"
-        PM2_APP = "express-app"
+        // Application settings
+        APP_DIR = "."
         NODE_ENV = "production"
         // Add Homebrew's Node.js to PATH
         PATH = "/opt/homebrew/opt/node@20/bin:/opt/homebrew/bin:${env.PATH}"
+        
+        // PM2 settings
+        PM2_APP = "express-app"
+        PM2_CONFIG = "${env.WORKSPACE}/ecosystem.config.js"
+        
+        // Flask API URL
+        FLASK_API = "http://localhost:5000"
     }
 
     stages {
@@ -57,83 +63,119 @@ pipeline {
     }
 
     stage('Test') {
-      steps {
-        sh '''
-          echo "Running tests..."
-          npm test
-        '''
-      }
-    }
-
-    stage('Start Application') {
-      steps {
-        sh '''
-          echo "Starting the application..."
-          nohup node app.js > app.log 2>&1 &
-          echo $! > app.pid
-          sleep 5  # Give the app some time to start
-          echo "Application started with PID $(cat app.pid)"
-        '''
-      }
-    }
-
-    stage('Tests') {
-      when { expression { return fileExists('package.json') } }
-      steps {
-        sh '''
-          set -e
-          cd ${APP_DIR}
-          if npm run | grep -q "^  test$"; then npm test --silent; else echo "No test script, skipping"; fi
-        '''
-      }
-    }
-
-    stage('Build') {
-      when { expression { return fileExists('package.json') } }
-      steps {
-        sh '''
-          set -e
-          cd ${APP_DIR}
-          if npm run | grep -q "^  build$"; then npm run build; else echo "No build script, skipping"; fi
-        '''
-      }
-    }
-
-    stage('Reload PM2') {
-        when {
-            expression { return env.PM2_AVAILABLE == 'true' }
         }
-        steps {
-            script {
-                echo 'Skipping PM2 reload as it is not installed.'
-                // Uncomment and modify the following if you want to install PM2 during the build
-                // sh 'npm install -g pm2'
-                // sh '''
-                //   set -e
-                //   pm2 describe ${PM2_APP} >/dev/null 2>&1 || pm2 start ${APP_DIR}/ecosystem.config.js --only ${PM2_APP}
-                //   pm2 reload ${PM2_APP}
-                //   pm2 save
-                // '''
+
+        stage('Install deps') {
+          steps {
+            sh '''
+              set -e
+              echo "Installing Node.js dependencies..."
+              npm install
+            '''
+          }
+        }
+
+        stage('Test') {
+          steps {
+            sh '''
+              echo "Running tests..."
+              npm test
+            '''
+          }
+        }
+
+        stage('Install PM2') {
+            steps {
+                sh '''
+                    echo "Installing PM2..."
+                    npm install -g pm2
+                    pm2 --version || echo "PM2 installation failed"
+                '''
+            }
+        }
+
+        stage('Start Applications') {
+            steps {
+                sh '''
+                    echo "Starting applications with PM2..."
+                    # Stop any existing instances
+                    pm2 delete ${PM2_APP} flask-app || true
+                    
+                    # Start both Express and Flask apps
+                    pm2 start ${PM2_CONFIG}
+                    
+                    # Save the process list for startup
+                    pm2 save
+                    
+                    # Generate startup script
+                    pm2 startup | tail -n 1 > pm2-startup.sh
+                    chmod +x pm2-startup.sh
+                    ./pm2-startup.sh
+                    
+                    # Save the process list again
+                    pm2 save
+                    
+                    # Show status
+                    pm2 status
+                '''
+            }
+        }
+
+        stage('Tests') {
+          when { expression { return fileExists('package.json') } }
+          steps {
+            sh '''
+              set -e
+              cd ${APP_DIR}
+              if npm run | grep -q "^  test$"; then npm test --silent; else echo "No test script, skipping"; fi
+            '''
+          }
+        }
+
+        stage('Build') {
+          when { expression { return fileExists('package.json') } }
+          steps {
+            sh '''
+              set -e
+              cd ${APP_DIR}
+              if npm run | grep -q "^  build$"; then npm run build; else echo "No build script, skipping"; fi
+            '''
+          }
+        }
+
+        stage('Reload PM2') {
+            when {
+                expression { return env.PM2_AVAILABLE == 'true' }
+            }
+            steps {
+                script {
+                    echo 'Skipping PM2 reload as it is not installed.'
+                    // Uncomment and modify the following if you want to install PM2 during the build
+                    // sh 'npm install -g pm2'
+                    // sh '''
+                    //   set -e
+                    //   pm2 describe ${PM2_APP} >/dev/null 2>&1 || pm2 start ${APP_DIR}/ecosystem.config.js --only ${PM2_APP}
+                    //   pm2 reload ${PM2_APP}
+                    //   pm2 save
+                    // '''
+                }
             }
         }
     }
-  }
 
-  post {
-    always {
-      script {
-        // Stop the application if it's running
-        sh '''
-          if [ -f app.pid ]; then
-            echo "Stopping application..."
-            kill $(cat app.pid) || true
-            rm -f app.pid
-          fi
-        '''
-        
-        // Archive any important files
-        archiveArtifacts artifacts: 'app.log', allowEmptyArchive: true
-      }
+    post {
+        always {
+            script {
+                // Stop the application if it's running
+                sh '''
+                    echo "Stopping PM2 applications..."
+                    pm2 delete ${PM2_APP} flask-app || true
+                    pm2 save
+                '''
+                
+                // Archive any important files
+                archiveArtifacts artifacts: 'app.log', allowEmptyArchive: true
+            }
+        }
     }
-  }
 }
