@@ -6,11 +6,42 @@ pipeline {
         APP_DIR = "./app"
         PM2_APP = "express-app"
         NODE_ENV = "production"
-        // Add Node.js to PATH if installed in a standard location
-        PATH = "${env.PATH}:/usr/local/bin:/usr/bin"
+        // Add common Node.js installation paths to PATH
+        PATH = "/usr/local/bin:/usr/bin:${env.PATH}"
     }
 
     stages {
+        stage('Check Dependencies') {
+            steps {
+                script {
+                    // Check if Node.js is installed
+                    def nodeVersion = sh(script: 'node --version || echo "NODE_NOT_FOUND"', returnStdout: true).trim()
+                    if (nodeVersion == 'NODE_NOT_FOUND') {
+                        error('Node.js is not installed. Please install Node.js on the Jenkins server.')
+                    } else {
+                        echo "Found Node.js version: ${nodeVersion}"
+                    }
+                    
+                    // Check if npm is installed
+                    def npmVersion = sh(script: 'npm --version || echo "NPM_NOT_FOUND"', returnStdout: true).trim()
+                    if (npmVersion == 'NPM_NOT_FOUND') {
+                        error('npm is not installed. Please install npm on the Jenkins server.')
+                    } else {
+                        echo "Found npm version: ${npmVersion}"
+                    }
+                    
+                    // Check if PM2 is installed (not required for basic pipeline)
+                    def pm2Version = sh(script: 'pm2 --version || echo "PM2_NOT_FOUND"', returnStdout: true).trim()
+                    if (pm2Version == 'PM2_NOT_FOUND') {
+                        echo 'Warning: PM2 is not installed. The deployment step will be skipped.'
+                        env.PM2_AVAILABLE = 'false'
+                    } else {
+                        echo "Found PM2 version: ${pm2Version}"
+                        env.PM2_AVAILABLE = 'true'
+                    }
+                }
+            }
+        }
     stage('Checkout') {
       steps { checkout scm }
     }
@@ -58,14 +89,22 @@ pipeline {
     }
 
     stage('Reload PM2') {
-      steps {
-        sh '''
-          set -e
-          pm2 describe ${PM2_APP} >/dev/null 2>&1 || pm2 start /home/ubuntu/apps/ecosystem.config.js --only ${PM2_APP}
-          pm2 reload ${PM2_APP}
-          pm2 save
-        '''
-      }
+        when {
+            expression { return env.PM2_AVAILABLE == 'true' }
+        }
+        steps {
+            script {
+                echo 'Skipping PM2 reload as it is not installed.'
+                // Uncomment and modify the following if you want to install PM2 during the build
+                // sh 'npm install -g pm2'
+                // sh '''
+                //   set -e
+                //   pm2 describe ${PM2_APP} >/dev/null 2>&1 || pm2 start ${APP_DIR}/ecosystem.config.js --only ${PM2_APP}
+                //   pm2 reload ${PM2_APP}
+                //   pm2 save
+                // '''
+            }
+        }
     }
   }
 
